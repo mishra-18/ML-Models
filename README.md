@@ -1,7 +1,7 @@
-[# ML-Models
+# ML-Models
 
-Hi 👋
-This Repository contains implementations of some models that I've code from scratch using mostly PyTorch. Feel free contribute or add any other popular architecture. Make sure to install eniops (einstein operations) as used at few places to deal with higher dimensional tensor vectors. ```pip install einops```.
+Hello 👋 
+This Repository contains implementations of some models that I've built from scratch using mostly PyTorch. Feel free contribute or add any other popular architecture. Make sure to install eniops (einstein operations) as used at few places to deal with higher dimensional tensor vectors. ```pip install einops```.
 
 
 
