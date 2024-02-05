@@ -63,7 +63,7 @@ class ShiftedWindowMSA(nn.Module):
         wei += rel_pos_embedding
         
         if self.shifted:
-            row_mask = torch.zeros((self.window_size**2, self.window_size**2))
+            row_mask = torch.zeros((self.window_size**2, self.window_size**2)).cuda()
             row_mask[-self.window_size * (self.window_size//2):, 0:-self.window_size * (self.window_size//2)] = float('-inf')
             row_mask[0:-self.window_size * (self.window_size//2), -self.window_size * (self.window_size//2):] = float('-inf')
             column_mask = rearrange(row_mask, '(r w1) (c w2) -> (w1 r) (w2 c)', w1=self.window_size, w2=self.window_size)
@@ -141,7 +141,7 @@ class Swin(nn.Module):
             x = stage(x)
         x = self.PatchMerging[2](x)
         x = self.stage4(x)
-        x = self.layer(self.avgpool1d(x.transpose(1, 2)).unsqueeze(2))
+        x = self.layer(self.avgpool1d(x.transpose(1, 2)).squeeze(2))
         return x
     
 if __name__ == '__main__':
@@ -150,5 +150,6 @@ if __name__ == '__main__':
     x = torch.rand(1, 3, 224, 224)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    x = x.to(device)
-    print(Swin()(x).shape)
+    x = x.type(torch.FloatTensor).to(device)
+    model = Swin().to(device)
+    print(model(x).shape)

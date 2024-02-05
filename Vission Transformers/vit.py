@@ -7,15 +7,14 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
 
-def PosEmbedding(seq_len, emb_dim):
-    embeddings = torch.ones(seq_len, emb_dim)
+def PositionEmbedding(seq_len, emb_size):
+    embeddings = torch.ones(seq_len, emb_size)
     for i in range(seq_len):
-         for j in range(emb_dim):
-             embeddings[i][j] = np.sin(i/pow(10000, j/emb_dim)) if j%2 == 0 else np.cos(i/pow(10000, (j-1)/emb_dim))
+        for j in range(emb_size):
+            embeddings[i][j] = np.sin(i / (pow(10000, j / emb_size))) if j % 2 == 0 else np.cos(i / (pow(10000, (j - 1) / emb_size)))
+    return torch.tensor(embeddings)
 
-    return embeddings
 
-print(PosEmbedding(10, 5).shape)
 
 
 
@@ -30,7 +29,8 @@ class PatchEmbedding(nn.Module):
         )
 
         self.cls_token = nn.Parameter(torch.rand(1, 1, emb_size))
-        self.pos_embed = nn.Parameter(torch.rand((img_size // patch_size)**2 + 1, emb_size))
+        self.pos_embed = nn.Parameter(PositionEmbedding((img_size // patch_size)**2 + 1, emb_size))
+    
     def forward(self, x: Tensor) -> Tensor:
         b, _, _, _ = x.shape
         x = self.projection(x)    
@@ -40,9 +40,7 @@ class PatchEmbedding(nn.Module):
         x = torch.cat([cls_token, x], dim=1)
 
         x = x + self.pos_embed
-
         return x
-    
 
 class MultiHead(nn.Module):
   def __init__(self, emb_size, num_head):
@@ -51,23 +49,23 @@ class MultiHead(nn.Module):
     self.num_head = num_head
     self.key = nn.Linear(emb_size, emb_size)
     self.value = nn.Linear(emb_size, emb_size)
-    self.query = nn.Linear(emb_size, emb_size)  # rm bias=True
+    self.query = nn.Linear(emb_size, emb_size) 
     self.att_dr = nn.Dropout(0.1)
-  def forward(self, x):  
-    # x -> b, n, embed_size(h, e)  i.e. num_head*e -> embed_size(768)
+  def forward(self, x):
     k = rearrange(self.key(x), 'b n (h e) -> b h n e', h=self.num_head)
     q = rearrange(self.key(x), 'b n (h e) -> b h n e', h=self.num_head)
     v = rearrange(self.key(x), 'b n (h e) -> b h n e', h=self.num_head)
 
 
-    wei = q@k.transpose(3,2)/self.num_head ** 0.5   
-    wei = F.softmax(wei)    # wei -> (b, h, n(197), n(197))
+    wei = q@k.transpose(3,2)/self.num_head ** 0.5    
+    wei = F.softmax(wei, dim=2)
     wei = self.att_dr(wei)
 
-    out = wei@v                    # out -> (b, h, n, e)
+    out = wei@v
 
     out = rearrange(out, 'b h n e -> b n (h e)')
     return out
+
   
 class FeedForward(nn.Module):
   def __init__(self, emb_size):
@@ -86,8 +84,8 @@ class Block(nn.Module):
     self.ll =   nn.LayerNorm(emb_size)
     self.dropout = nn.Dropout(0.1)
     self.ff = FeedForward(emb_size)
-  def forward(self, x):   
-    x = x + self.dropout(self.att(self.ll(x)))  # self.att(x): x -> (b , n(197), emb_size(768)) 
+  def forward(self, x):
+    x = x + self.dropout(self.att(self.ll(x)))  # self.att(x): x -> (b , n, emb_size) 
     x = x + self.dropout(self.ff(self.ll(x)))
     return x
   
