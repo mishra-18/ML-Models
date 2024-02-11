@@ -55,9 +55,9 @@ class MultiHeadAttention(nn.Module):
 
     q, k, v = self.forward_conv(x)
 
-    q = rearrange(x, 'b t (e H) -> b H t e', H=self.num_heads)
-    k = rearrange(x, 'b t (e H) -> b H t e', H=self.num_heads)
-    v = rearrange(x, 'b t (e H) -> b H t e', H=self.num_heads)
+    q = rearrange(x, 'b t (d H) -> b H t d', H=self.num_heads)
+    k = rearrange(x, 'b t (d H) -> b H t d', H=self.num_heads)
+    v = rearrange(x, 'b t (d H) -> b H t d', H=self.num_heads)
 
     att_score = q@k.transpose(2, 3)/self.num_heads**0.5
     att_score = F.softmax(att_score, dim=-1)
