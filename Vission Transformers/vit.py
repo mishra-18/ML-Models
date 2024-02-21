@@ -53,8 +53,8 @@ class MultiHead(nn.Module):
     self.att_dr = nn.Dropout(0.1)
   def forward(self, x):
     k = rearrange(self.key(x), 'b n (h e) -> b h n e', h=self.num_head)
-    q = rearrange(self.key(x), 'b n (h e) -> b h n e', h=self.num_head)
-    v = rearrange(self.key(x), 'b n (h e) -> b h n e', h=self.num_head)
+    q = rearrange(self.query(x), 'b n (h e) -> b h n e', h=self.num_head)
+    v = rearrange(self.value(x), 'b n (h e) -> b h n e', h=self.num_head)
 
 
     wei = q@k.transpose(3,2)/self.num_head ** 0.5    
@@ -98,7 +98,7 @@ class VissionTransformer(nn.Module):
 
   def forward(self, x):     # x -> (b, c, h, w)
     embeddings = self.patchemb(x)    
-    x = self.attention(embeddings)    # embeddings -> (b, 197, emb_size)
+    x = self.attention(embeddings)   
     x = self.ff(x[:, 0, :])
     return x
   
