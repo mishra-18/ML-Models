@@ -5,9 +5,8 @@ from vit import PatchEmbedding, Block
 
 def random_masking(x, mask_ratio):
         """
-        Perform per-sample random masking by per-sample shuffling.
-        Per-sample shuffling is done by argsort random noise.
-        x: [N, L, D], sequence
+        X: (B T C) 
+        random masking to create randomly shuffled unmasked patches
         """
 
         B, T, D = x.shape  
@@ -45,7 +44,7 @@ class MaskedAutoEncoder(nn.Module):
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_emb_size))
         self.encoder_transformer = nn.Sequential(*[Block(emb_size, num_head) for _ in range(encoder_num_layers)])
         self.decoder_transformer = nn.Sequential(*[Block(decoder_emb_size, num_head) for _ in range(decoder_num_layers)])
-        self.project = self.projection = nn.Sequential(
+        self.project = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=patch_size**2 * in_channels, kernel_size=patch_size, stride=patch_size),
             Rearrange('b e (h) (w) -> b (h w) e'),
         )
@@ -55,7 +54,7 @@ class MaskedAutoEncoder(nn.Module):
         cls_token = x[:, :1, :]
         x = x[:, 1:, :] 
         
-        x, mask, restore_id = random_masking(x, mask_ratio)
+        x, mask, restore_id = self.random_masking(x, mask_ratio)
         
         x = torch.cat((cls_token, x), dim=1)
         
@@ -68,6 +67,7 @@ class MaskedAutoEncoder(nn.Module):
         x = self.decoder_embed(x)
         
         mask_tokens = self.mask_token.repeat(x.shape[0], restore_id.shape[1] + 1 - x.shape[1], 1)
+        x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1) 
         x_ = torch.gather(x_, dim=1, index=restore_id.unsqueeze(-1).repeat(1, 1, x.shape[2]))  
         x = torch.cat([x[:, :1, :], x_], dim=1)  
 
@@ -82,28 +82,28 @@ class MaskedAutoEncoder(nn.Module):
         # remove cls token
         x = x[:, 1:, :]
         
-        return x 
-    
+        return x
+
     def loss(self, imgs, pred, mask):
         """
         imgs: [N, 3, H, W]
-        pred: [N, L, p*p*3]
+        pred: [N, L, patch*patch*3]
         mask: [N, L], 0 is keep, 1 is remove, 
         """
         target = self.project(imgs)
         
         loss = (pred - target) ** 2
-        loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
-
-        loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
-        return loss
+        loss = loss.mean(dim=-1) 
     
+        loss = (loss * mask).sum() / mask.sum()  
+        return loss
+
     def forward(self, img):
         mask_ratio = 0.75
 
         x, mask, restore_ids = self.encoder(img, mask_ratio)
         pred = self.decoder(x, restore_ids) 
-        loss  = self.loss(img, pred, mask)
+        loss  = self.loss(img, pred, mask) 
         return loss, pred, mask
     
 
