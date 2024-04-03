@@ -3,6 +3,8 @@
 Hello 👋 
 This Repository contains implementations of some models that I've built from scratch using mostly PyTorch. Feel free to contribute or add any other popular architecture. Make sure to install eniops (einstein operations) as used at a few places to deal with higher dimensional tensor vectors. ```pip install einops```.
 
+## Blogs
+If you want to know more about implementing ViTs from scratch you can follow me on [Medium](https://medium.com/@mishra4475) I have a series going on, where I comprehensively explain various architectures from scratch.
 
 
 # Citations
