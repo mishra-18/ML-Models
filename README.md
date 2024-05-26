@@ -73,3 +73,11 @@ If you want to know more about implementing ViTs from scratch you can follow me 
   year={2021}
 }
 ```
+```
+@article{assael2016lipnet,
+  title={LipNet: End-to-End Sentence-level Lipreading},
+  author={Assael, Yannis M. and Shillingford, Brendan and Whiteson, Shimon and de Freitas, Nando},
+  journal={arXiv preprint arXiv:1611.01599},
+  year={2016}
+}
+```
