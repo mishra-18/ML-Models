@@ -12,7 +12,7 @@ def PositionEmbedding(seq_len, emb_size):
     for i in range(seq_len):
         for j in range(emb_size):
             embeddings[i][j] = np.sin(i / (pow(10000, j / emb_size))) if j % 2 == 0 else np.cos(i / (pow(10000, (j - 1) / emb_size)))
-    return torch.tensor(embeddings)
+    return embeddings
 
 
 
@@ -94,25 +94,30 @@ class VissionTransformer(nn.Module):
     self.patchemb = PatchEmbedding(patch_size=patch_size, img_size=img_size)
     self.ff = nn.Linear(emb_size, num_class)
 
-  def forward(self, x):     # x -> (b, c, h, w)
+  def forward(self, x, num_class=True):     # x -> (b, c, h, w)
     embeddings = self.patchemb(x)    
-    x = self.attention(embeddings)   
-    x = self.ff(x[:, 0, :])
-    return x
-  
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-num_layers = 8
-emb_size = 768
-num_head = 6
-num_class=10
-patch_size=16
-model = VissionTransformer( num_layers=num_layers,
-                            img_size=224,
-                            emb_size=emb_size,
-                            patch_size=patch_size,
-                            num_head=num_head,
-                            num_class=num_class).to(device)
+    x = self.attention(embeddings) 
+    
+    if num_class:
+      x = self.ff(x[:, 0, :])
+      return x
+    else:
+      return x[:, 0, :]
+    
+
 if __name__ == '__main__':
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    num_layers = 8
+    emb_size = 768
+    num_head = 6
+    num_class=10
+    patch_size=16
+    model = VissionTransformer( num_layers=num_layers,
+                                img_size=224,
+                                emb_size=emb_size,
+                                patch_size=patch_size,
+                                num_head=num_head,
+                                num_class=num_class).to(device)
     x = torch.rand(1, 3, 224, 224)
     x = x.type(torch.FloatTensor).to(device)
     print(model(x).shape)
