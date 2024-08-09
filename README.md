@@ -81,3 +81,9 @@ If you want to know more about implementing ViTs from scratch you can follow me 
   year={2016}
 }
 ```
+@article{radford2021learning,
+  title={Learning Transferable Visual Models From Natural Language Supervision},
+  author={Radford, Alec and Kim, Jong Wook and Hallacy, Chris and Ramesh, Aditya and Goh, Gabriel and Agarwal, Sandhini and Sastry, Girish and Askell, Amanda and Mishkin, Pam and Clark, Jack and others},
+  journal={arXiv preprint arXiv:2103.00020},
+  year={2021}
+}
