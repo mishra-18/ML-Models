@@ -92,26 +92,31 @@ class VissionTransformer(nn.Module):
     super().__init__()
     self.attention = nn.Sequential(*[Block(emb_size, num_head) for _ in range(num_layers)])
     self.patchemb = PatchEmbedding(patch_size=patch_size, img_size=img_size)
-    self.ff = nn.Linear(emb_size, num_class)
+    self.num_class = num_class
+    if self.num_class:
+      self.ff = nn.Linear(emb_size, num_class)
 
-  def forward(self, x, num_class=True):     # x -> (b, c, h, w)
+  def forward(self, x):     # x -> (b, c, h, w)
     embeddings = self.patchemb(x)    
     x = self.attention(embeddings) 
     
-    if num_class:
+    if self.num_class:
       x = self.ff(x[:, 0, :])
       return x
     else:
+      print("Yououo")
       return x[:, 0, :]
     
 
 if __name__ == '__main__':
+    # Example Usage
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     num_layers = 8
     emb_size = 768
     num_head = 6
     num_class=10
     patch_size=16
+
     model = VissionTransformer( num_layers=num_layers,
                                 img_size=224,
                                 emb_size=emb_size,

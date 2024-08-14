@@ -74,7 +74,7 @@ class CLIPModel(nn.Module):
             emb_size=768,
             patch_size=16,
             num_head=6,
-            num_class=768).to(self.device)
+            num_class=False).to(self.device)
         self.image_encoder = ImageEncoder(base_model=ViT, embed_dim=768, proj_dim=256)
         self.text_encoder = TextEncoder(embed_dim=768, proj_dim=256)
 
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     texts = ["This is a sample sentence.", "This is another example."]
 
     # train_data = CustomDataset(texts, image_path)
-    # train_loader = CustomDataset(train_data, batch_size, shuffle=True)
+    # train_loader = DataLoader(train_data, batch_size, shuffle=True)
     
     # Example Usage
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
