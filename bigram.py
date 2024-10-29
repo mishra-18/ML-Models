@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-# reading txt file (encode decode)
+# reading txt file (encode decode) /* downloaded from: https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt */
 text = open('input.txt', 'r',).read()
 vocab = sorted(list(set(text)))
 encode = lambda s: [vocab.index(c) for c in s]
@@ -22,7 +22,7 @@ num_head = 4
 num_layers = 4
 def get_batch(split):
     # generate a small batch of data of inputs x and targets y
-    data = train if split == 'False' else val  
+    data = train if split == 'train' else val  
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([data[i:i+block_size] for i in ix])
     y = torch.stack([data[i+1:i+block_size+1] for i in ix])
@@ -124,7 +124,7 @@ class BigramLanguageModel(nn.Module):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
             # crop idx to the last block_size tokens
-            crop_idx= idx[:, -block_size:]
+            crop_idx= idx[:, -block_size:].to(device)
             # get the predictions
             logits, loss = self(crop_idx)
             # focus only on the last time step
@@ -132,7 +132,7 @@ class BigramLanguageModel(nn.Module):
             # apply softmax to get probabilities
             probs = F.softmax(logits, dim=-1) # (B, C)
             # sample from the distribution
-            idx_next = torch.multinomial(probs, num_samples=1) # (B, 1)
+            idx_next = torch.multinomial(probs, num_samples=1).to(device) # (B, 1)
             # append sampled index to the running sequence
             idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
         return idx
@@ -142,29 +142,31 @@ m = BigramLanguageModel(65).to(device)
 optimizer = torch.optim.AdamW(m.parameters(), lr=1e-3)
 
 # training the model, cause I won't give up without a fight 
-batch_size = 32
-for epoch in range(5000):
+epochs = 5000
+for epoch in range(epochs):
 
-    # Printing the Training and Validation Loss
+    # Printing the Training and Validation Loss 
     if epoch%1000==0: 
         m.eval()
-        Loss= 0.0
-        Val_Loss = 0.0
+        train_loss= 0.0
+        val_loss = 0.0
+
         for k in range(200):
-            x, y = get_batch(True)
-            
+            x, y = get_batch('val')
             val_ , val_loss = m(x, y)
-            x1, y1 = get_batch(False)
 
-            _, train_loss = m(x1, y1)            
-            Loss += train_loss.item()
-            Val_Loss += val_loss.item()
-        avg_loss = Val_Loss/(k+1)
+            x1, y1 = get_batch('train')
+            _, train_loss = m(x1, y1)
 
-        avg_train_loss = Loss/(k+1)
+            train_loss += train_loss.item()
+            val_loss += val_loss.item()
+
+        avg_val_loss = val_loss/(k+1)
+        avg_train_loss = train_loss/(k+1)
         m.train()
         
-        print("Epoch: {} \n The validation loss is:{}    The Loss is:{}".format(epoch, avg_loss, avg_train_loss))
+        print("Epoch: {} \n The validation loss is: {:.6f}    The Training Loss is: {:.6f}".format(epoch, avg_val_loss, avg_train_loss))
+        
     # Forward
     data, target = get_batch(False)
     logits, loss = m(data, target)
@@ -172,7 +174,8 @@ for epoch in range(5000):
     optimizer.zero_grad(set_to_none=True)
     loss.backward()
     optimizer.step()
-# for torch.trill
-# block_size = 1 
 
-print("".join(decode(m.generate(torch.zeros([1,1], dtype=torch.long) , max_new_tokens=2000)[0].tolist())))
+# torch.save(m.state_dict(), "bigram.pth")
+
+if __name__ == '__main__':
+    print("".join(decode(m.generate(torch.zeros([1,1], dtype=torch.long).to(device) , max_new_tokens=2000)[0].tolist())))
