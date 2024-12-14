@@ -143,6 +143,7 @@ optimizer = torch.optim.AdamW(m.parameters(), lr=1e-3)
 
 # training the model, cause I won't give up without a fight 
 epochs = 5000
+min_loss = 1.0
 for epoch in range(epochs):
 
     # Printing the Training and Validation Loss 
@@ -164,6 +165,10 @@ for epoch in range(epochs):
         avg_val_loss = val_loss/(k+1)
         avg_train_loss = train_loss/(k+1)
         m.train()
+
+        if avg_val_loss < min_loss:
+            min_loss = avg_val_loss
+            torch.save(m.state_dict(), "bigram_best.pth")
         
         print("Epoch: {} \n The validation loss is: {:.6f}    The Training Loss is: {:.6f}".format(epoch, avg_val_loss, avg_train_loss))
         
