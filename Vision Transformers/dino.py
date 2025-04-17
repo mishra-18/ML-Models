@@ -104,7 +104,7 @@ def train_dino(dino: DINO,
         """
     
         for epoch in range(num_epochs):
-            print(f"Epoch: {epoch+1}/{len(num_epochs)}")
+            print(f"Epoch: {epoch+1}/{num_epochs}")
             for x in data_loader:
 
                 x1, x2 = global_augment(x), multiple_local_augments(x)  
@@ -114,8 +114,8 @@ def train_dino(dino: DINO,
                     teacher_output1, teacher_output2 = dino.teacher(x1.to(device)), dino.teacher(x2.to(device))
 
                 # Compute distillation loss
-                loss = (dino.distillation_loss(teacher_output1, student_output2, dino.center, tps, tpt) +
-                        dino.distillation_loss(teacher_output2, student_output1, dino.center, tps, tpt)) / 2
+                loss = (dino.distillation_loss(student_output2, teacher_output1, dino.center, tps, tpt) +
+                        dino.distillation_loss(student_output1, teacher_output2, dino.center, tps, tpt)) / 2
 
                 # Backpropagation
                 optimizer.zero_grad()
