@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader
 from typing import Callable
 
 
-
 class DINO(nn.Module):
     def __init__(self, student_arch: Callable, teacher_arch: Callable, device: torch.device):
         """
@@ -54,9 +53,12 @@ class DINO(nn.Module):
             teacher_params.data.mul_(beta).add_(student_params.data, alpha=(1 - beta))
 
 # These agumentations are defined exactly as propsed in the paper
-def global_augment(images):
+# read Appendix E for more information https://arxiv.org/pdf/2104.14294
+
+def global_augment(images, num_crops=2):
+    img_size=224
     global_transform = transforms.Compose([
-        transforms.RandomResizedCrop(224, scale=(0.4, 1.0)),  # Larger crops
+        transforms.RandomResizedCrop(img_size, scale=(0.4, 1.0)),  # Larger crops
         transforms.RandomHorizontalFlip(),
         transforms.ColorJitter(0.4, 0.4, 0.4, 0.1),  # Color jittering
         transforms.RandomGrayscale(p=0.2),
@@ -64,12 +66,12 @@ def global_augment(images):
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    return torch.stack([global_transform(img) for img in images])
+    return torch.stack([global_transform(image) for image in images for _ in range(num_crops)], dim=0)
 
 def multiple_local_augments(images, num_crops=6):
-    size = 96  # Smaller crops for local
+    img_size = 96  # Smaller crops for local
     local_transform = transforms.Compose([
-        transforms.RandomResizedCrop(size, scale=(0.05, 0.4)),  # Smaller, more concentrated crops
+        transforms.RandomResizedCrop(img_size, scale=(0.05, 0.4)),  # Smaller, more concentrated crops
         transforms.RandomHorizontalFlip(),
         transforms.ColorJitter(0.4, 0.4, 0.4, 0.1),  # Same level of jittering
         transforms.RandomGrayscale(p=0.2),
@@ -77,14 +79,16 @@ def multiple_local_augments(images, num_crops=6):
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    # Apply the transformation multiple times to the same image
-    return torch.stack([local_transform(img) for img in images])
+    # Apply the transformation multiple times to the same image across the batch
+    return torch.stack([local_transform(image) for image in images for _ in range(num_crops)], dim=0)
 
 def train_dino(dino: DINO,
                data_loader: DataLoader,
                optimizer: Optimizer,
                device: torch.device,
                num_epochs,
+               n_global_crops=2,
+               n_local_crops=6,
                tps=0.9,
                tpt= 0.04,
                beta= 0.9,
@@ -104,22 +108,32 @@ def train_dino(dino: DINO,
         """
     
         for epoch in range(num_epochs):
-            print(f"Epoch: {epoch+1}/{len(num_epochs)}")
+            print(f"Epoch: {epoch+1}/{num_epochs}")
             for x in data_loader:
 
-                x1, x2 = global_augment(x), multiple_local_augments(x)  
+                global_crops, local_crops = global_augment(x, n_global_crops), multiple_local_augments(x, n_local_crops)  
 
-                student_output1, student_output2 = dino.student(x1.to(device)), dino.student(x2.to(device))
+                student_global_output = dino.student(global_crops).to(device) # b, c, 224, 224 -> b, e
+                student_local_output = dino.student(local_crops).to(device) # b, c, 96, 96 -> b, e
+
+                student_output = torch.cat([student_global_output, student_local_output], dim=0)
+
                 with torch.no_grad():
-                    teacher_output1, teacher_output2 = dino.teacher(x1.to(device)), dino.teacher(x2.to(device))
-
-                # Compute distillation loss
-                loss = (dino.distillation_loss(teacher_output1, student_output2, dino.center, tps, tpt) +
-                        dino.distillation_loss(teacher_output2, student_output1, dino.center, tps, tpt)) / 2
+                    teacher_output = dino.teacher(global_crops.to(device))
+                
+                # Calculating loss
+                total_loss=0
+                n_loss=0
+                for ti, t_out in enumerate(teacher_output.chunk(n_global_crops)):
+                    for si, s_out in enumerate(student_output.chunk(n_local_crops)):
+                        if ti != si: # Skipping the outputs where student crops index matches with teachers, code reference https://github.com/facebookresearch/dino/blob/main/main_dino.py#L396
+                            total_loss += dino.distillation_loss(s_out, t_out, dino.center, tps, tpt)
+                            n_loss += 1
+                total_loss /= n_loss  # n_loss = total number - 2 for the two times loss was skipped above
 
                 # Backpropagation
                 optimizer.zero_grad()
-                loss.backward()
+                total_loss.backward()
                 optimizer.step()
 
                 # Update the teacher network parameters
@@ -127,4 +141,4 @@ def train_dino(dino: DINO,
                 
                 # Update the center
                 with torch.no_grad():
-                    dino.center = m * dino.center + (1 - m) * torch.cat([teacher_output1, teacher_output2], dim=0).mean(dim=0)
+                    dino.center = m * dino.center + (1 - m) * teacher_output.mean(dim=0)

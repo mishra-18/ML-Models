@@ -66,7 +66,7 @@ def global_augment(images, num_crops=2):
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    return torch.stack([global_transform(images) for _ in range(num_crops)], dim=0)
+    return torch.stack([global_transform(image) for image in images for _ in range(num_crops)], dim=0)
 
 def multiple_local_augments(images, num_crops=6):
     img_size = 96  # Smaller crops for local
@@ -79,8 +79,8 @@ def multiple_local_augments(images, num_crops=6):
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    # Apply the transformation multiple times to the same image
-    return torch.stack([local_transform(images) for _ in range(num_crops)], dim=0)
+    # Apply the transformation multiple times to the same image across the batch
+    return torch.stack([local_transform(image) for image in images for _ in range(num_crops)], dim=0)
 
 def train_dino(dino: DINO,
                data_loader: DataLoader,
@@ -113,7 +113,11 @@ def train_dino(dino: DINO,
 
                 global_crops, local_crops = global_augment(x, n_global_crops), multiple_local_augments(x, n_local_crops)  
 
-                student_output = dino.student(torch.cat([global_crops, local_crops], dim=0).to(device))
+                student_global_output = dino.student(global_crops).to(device) # b, c, 224, 224 -> b, e
+                student_local_output = dino.student(local_crops).to(device) # b, c, 96, 96 -> b, e
+
+                student_output = torch.cat([student_global_output, student_local_output], dim=0)
+
                 with torch.no_grad():
                     teacher_output = dino.teacher(global_crops.to(device))
                 
@@ -125,7 +129,7 @@ def train_dino(dino: DINO,
                         if ti != si: # Skipping the outputs where student crops index matches with teachers, code reference https://github.com/facebookresearch/dino/blob/main/main_dino.py#L396
                             total_loss += dino.distillation_loss(s_out, t_out, dino.center, tps, tpt)
                             n_loss += 1
-                total_loss /= n_loss  # total loss, subtracting 2 for the two times loss was skipped above
+                total_loss /= n_loss  # n_loss = total number - 2 for the two times loss was skipped above
 
                 # Backpropagation
                 optimizer.zero_grad()
